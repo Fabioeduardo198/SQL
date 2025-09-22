@@ -1,0 +1,141 @@
+USE ['DB_NOME_BANCO'] -- BANCO A SER USADO
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+-- Se já existir, remove a procedure  -- INSERIR O NOME DA PROCEDURE QUE SERÁ CRIADA OU ALTERADA
+--IF OBJECT_ID('dbo.PRC_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL', 'P') IS NOT NULL
+-- DROP PROCEDURE dbo.PRC_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL;
+--GO
+
+CREATE PROCEDURE [dbo].'[PRC_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL]'  -- INSERIR O NOME DA PROCEDURE QUE SERÁ CRIADA OU ALTERADA
+AS
+BEGIN
+SET NOCOUNT ON;
+
+DECLARE
+@src_schema SYSNAME = N'dbo',
+@src_table SYSNAME = N'__________________________________', -- INSERIR O NOME DA TABELA BASE
+@tgt_schema SYSNAME = N'dbo',
+@tgt_table SYSNAME = N'TB_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL', -- INSERIR O NOME DA TABELA A SER CRIADA
+@SQL NVARCHAR(MAX),
+@colname SYSNAME,
+@Coldef NVARCHAR(200),
+@cols_list NVARCHAR(MAX);
+
+-- 1) Criar tabela de destino caso não exista
+IF NOT EXISTS (
+SELECT 1
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = @tgt_schema
+AND TABLE_NAME = @tgt_table
+)
+BEGIN
+SET @SQL = N'
+SELECT TOP(0)
+src.*
+INTO [' + @tgt_schema + '].[' + @tgt_table + ']
+FROM [' + @src_schema + '].[' + @src_table + '] AS src;
+';
+EXEC sp_executesql @SQL;
+END
+
+-- 2) Sincronizar novas colunas da fonte na tabela de destino
+DECLARE cur_columns CURSOR LOCAL FOR
+SELECT
+c.COLUMN_NAME,
+c.DATA_TYPE
++ CASE
+WHEN c.DATA_TYPE IN ('varchar','char','nvarchar','nchar')
+THEN '('
++ CASE WHEN c.CHARACTER_MAXIMUM_LENGTH = -1 THEN 'MAX'
+ELSE CAST(c.CHARACTER_MAXIMUM_LENGTH AS VARCHAR(10))
+END
++ ')'
+WHEN c.DATA_TYPE IN ('decimal','numeric')
+THEN '(' + CAST(c.NUMERIC_PRECISION AS VARCHAR(5))
++ ',' + CAST(c.NUMERIC_SCALE AS VARCHAR(5))
++ ')'
+ELSE ''
+END AS ColumnDefinition
+FROM INFORMATION_SCHEMA.COLUMNS AS c
+WHERE
+c.TABLE_SCHEMA = @src_schema
+AND c.TABLE_NAME = @src_table
+AND NOT EXISTS (
+SELECT 1
+FROM INFORMATION_SCHEMA.COLUMNS AS tgt
+WHERE
+tgt.TABLE_SCHEMA = @tgt_schema
+AND tgt.TABLE_NAME = @tgt_table
+AND tgt.COLUMN_NAME = c.COLUMN_NAME
+);
+
+OPEN cur_columns;
+FETCH NEXT FROM cur_columns INTO @colname, @Coldef;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+SET @SQL = N'
+ALTER TABLE [' + @tgt_schema + '].[' + @tgt_table + ']
+ADD [' + @colname + '] ' + @Coldef + ';
+';
+EXEC sp_executesql @SQL;
+FETCH NEXT FROM cur_columns INTO @colname, @Coldef;
+END
+CLOSE cur_columns;
+DEALLOCATE cur_columns;
+
+-- 3) Adicionar coluna CHAVE_UNICA concatenando cod_OcElemento + '_' + cod_Elemento
+IF NOT EXISTS (
+SELECT 1
+FROM sys.columns
+WHERE
+object_id = OBJECT_ID(QUOTENAME(@tgt_schema) + '.' + QUOTENAME(@tgt_table))
+AND name = N'CHAVE_UNICA' -- CRIA UMA NOVA COLUNA PARA INSERIR CHAVE PRIMÁRIA (CRITÉRIO PARA REMOVER DUPLICIDADE)
+)
+BEGIN
+-- Coluna computada persistida no final da tabela
+ALTER TABLE [dbo].['TB_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL']		--INSERIR O MESMO NOME DE TABELA QUE FOI CRIADO NESSE SCRIPT
+ADD CHAVE_UNICA AS (					-- CRIA UMA NOVA COLUNA PARA INSERIR CHAVE PRIMÁRIA (CRITÉRIO PARA REMOVER DUPLICIDADE)
+CAST(circuito AS VARCHAR(100))			-- PRIMEIRA COLUNA A SER CONCATENADA PARA CHAVE PRIMÁRIA (CRITÉRIO PARA REMOVER DUPLICIDADE)
++ '_'
++ CAST(protocolo AS VARCHAR(100))		-- SEGUNDA COLUNA A SER CONCATENADA PARA CHAVE PRIMÁRIA (CRITÉRIO PARA REMOVER DUPLICIDADE)
+) PERSISTED;
+END
+
+-- 4) Inserir dados da tabela ORIGEM na tabela de DESTINO (CHAVE_UNICA é computada)
+SELECT @cols_list =
+STUFF((
+SELECT ', ' + QUOTENAME(COLUMN_NAME)
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE
+TABLE_SCHEMA = @tgt_schema
+AND TABLE_NAME = @tgt_table
+AND COLUMN_NAME <> 'CHAVE_UNICA'	-- ALTERAR O NOME CASO A COLUNA CRIADA TENHA OUTRO
+ORDER BY ORDINAL_POSITION
+FOR XML PATH(''), TYPE
+).value('.', 'NVARCHAR(MAX)'), 1, 2, '');
+
+SET @SQL = N'
+INSERT INTO [' + @tgt_schema + '].[' + @tgt_table + ']
+(' + @cols_list + ')
+SELECT
+' + @cols_list + '
+FROM [' + @src_schema + '].[' + @src_table + '];
+';
+EXEC sp_executesql @SQL;
+
+-- 5) Remover duplicatas baseadas em CHAVE_UNICA, mantendo apenas uma linha
+    WITH DupCTE AS (
+SELECT *,
+       ROW_NUMBER() OVER (
+           PARTITION BY CHAVE_UNICA			-- ALTERAR O NOME CASO A COLUNA CRIADA TENHA OUTRO
+           ORDER BY (SELECT NULL)
+       ) AS rn
+FROM [dbo].['TB_CLIENTE_ESTAGIO_NOME_BASEADO_NA_TABELA_ORIGINAL']		--INSERIR O MESMO NOME DE TABELA QUE FOI CRIADO NESSE SCRIPT
+)
+DELETE FROM DupCTE
+WHERE rn > 1;
+END
