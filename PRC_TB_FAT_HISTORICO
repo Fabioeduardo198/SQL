@@ -1,0 +1,37 @@
+-- ESSE SCRIPT CRIA UMA TABELA COM AS INFORMAÇÕES SOBRE TODAS AS TABELAS DOS BANCOS NO SERVIDOR
+-- BANCO, OBJETO, TAMANHO, TAMBEM GERA LOG DE DATA EM QUE O SCRIPT FOI EXECUTADO.
+
+
+USE [DB_DE_PARA]
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[PRC_TB_FAT_HISTORICO]
+AS
+BEGIN
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = '';
+
+    -- Geramos a consulta dinâmica para cada banco de dados online
+    SELECT @sql = @sql + 
+        'USE [' + name + ']; 
+         INSERT INTO [DB_DE_PARA].[dbo].[TB_FAT_HISTORICO] 
+         (NM_DATABASE_NAME, NM_TABLE_NAME, DT_CAPTURE_DATE, NR_SIZE_TABLE) 
+         SELECT ''' + name + ''' AS NM_DATABASE_NAME, 
+                t.name AS NM_TABLE_NAME, 
+                GETDATE() AS DT_CAPTURE_DATE, 
+                CAST(s.reserved / 1024.0 AS DECIMAL(10,2)) AS NR_SIZE_TABLE
+         FROM sys.tables t
+         JOIN (SELECT OBJECT_NAME(id) AS NM_TABLE_NAME, SUM(reserved) AS reserved 
+               FROM sys.sysindexes 
+               GROUP BY OBJECT_NAME(id)) s 
+         ON t.name = s.NM_TABLE_NAME;
+         '
+    FROM sys.databases
+    WHERE state_desc = 'ONLINE';
+
+    EXEC sp_executesql @sql;
+END;
