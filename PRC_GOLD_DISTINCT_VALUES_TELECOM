@@ -1,0 +1,84 @@
+USE [DB_CLIENTE]
+GO
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [dbo].[PRC_CLIENTE_GOLD_ELOS_PARAMETRO_688]
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Se já existir, remove a tabela de destino
+    IF OBJECT_ID('dbo.TB_CLIENTE_GOLD_ELOS_PARAMETRO_688', 'U') IS NOT NULL
+        DROP TABLE dbo.TB_CLIENTE_GOLD_ELOS_PARAMETRO_688;
+
+    -- Cria e popula a tabela GOLD a partir da SILVER
+    SELECT 
+          [cod_Parametro]                          AS [NR_COD_PARAMETRO],
+          [dat_Referencia]                         AS [DT_REFERENCIA],
+          [num_Total]                              AS [NR_NUM_TOTAL],
+          [cod_Produto]                            AS [NR_COD_PRODUTO],
+          [cod_TipoInstalacao]                     AS [NR_COD_TIPO_INSTALACAO],
+          [cod_Ocorrencia]                         AS [NR_COD_OCORRENCIA],
+          [cod_Elemento]                           AS [NM_COD_ELEMENTO],
+          [cod_OcAnterior]                         AS [NR_COD_OC_ANTERIOR],
+          [cod_OcElemento]                         AS [NR_COD_OC_ELEMENTO],
+          [cod_OcElementoAnterior]                 AS [NR_COD_OC_ELEMENTO_ANTERIOR],
+          [cod_Periodo]                            AS [DT_COD_PERIODO],
+          [nom_Armario]                            AS [NM_NOM_ARMARIO],
+          [cod_Contrato]                           AS [NR_COD_CONTRATO],
+          [cod_Empresa]                            AS [NR_COD_EMPRESA],
+          [cod_SAS]                                AS [NR_COD_SAS],
+          [cod_Barramento]                         AS [NR_COD_BARRAMENTO],
+          [dat_Ocorrencia]                         AS [DT_DAT_OCORRENCIA],
+          [dat_OcorrenciaFinal]                    AS [DT_DAT_OCORRENCIA_FINAL],
+          [dat_Data]                               AS [DT_DAT_DATA],
+          [ind_Reincidencia]                       AS [NR_IND_REINCIDENCIA],
+          [nom_CNLAT]                              AS [NM_NOM_CNLAT],
+          [nom_Elemento]                           AS [NM_NOM_ELEMENTO],
+          [nom_Causa]                              AS [NM_NOM_CAUSA],
+          [nom_CausaOCAnterior]                    AS [NM_NOM_CAUSA_OC_ANTERIOR],
+          [nom_Status]                             AS [NM_NOM_STATUS],
+          [nom_Status_OC_Anterior]                 AS [NM_NOM_STATUS_OC_ANTERIOR],
+          [num_AfetacaoElemento]                   AS [NN_NUM_AFETACAO_ELEMENTO],
+          [num_AfetacaoOC]                         AS [NM_NUM_AFETACAO_OC],
+          [num_BDs_OC]                             AS [NM_NUM_BDS_OC],
+          [nom_Contrato]                           AS [NM_NOM_CONTRATO],
+          [nom_Empresa]                            AS [NM_NOM_EMPRESA],
+          [nom_Cluster]                            AS [NM_NOM_CLUSTER],
+          [cod_Cluster]                            AS [NM_COD_CLUSTER],
+          [nom_TipoRede]                           AS [NM_NOM_TIPO_REDE],
+          [nom_Rede]                               AS [NM_NOM_REDE],
+          [num_ODS]                                AS [NM_NUM_ODS],
+          [nom_AreaSolicitante]                    AS [NM_NOM_AREA_SOLICITANTE],
+          [num_Cnl]                                AS [NR_NUM_CNL],
+          [num_TA]                                 AS [NR_NUM_TA],
+          [Qtde_OC]                                AS [NR_QTDE_OC],
+          [val_DuracaoSegundos]                    AS [NR_VAL_DURACAO_SEGUNDOS],
+          [val_DuracaoReincidenciaSegundos]        AS [NR_VAL_DURACAO_REINCIDENCIA_SEGUNDOS],
+          [val_DuracaoReincidenciaDias]            AS [NR_VAL_DURACAO_REINCIDENCIA_DIAS],
+          [ind_Migracao]                           AS [NR_IND_MIGRACAO],
+          [cod_Cidade]                             AS [NR_COD_CIDADE],
+          [nom_Cidade]                             AS [NM_NOM_CIDADE],
+          [nom_Regional]                           AS [NM_NOM_REGIONAL],
+          [cod_Regional]                           AS [NR_COD_REGIONAL],
+          [id_data_atualizacao]                    AS [NR_ID_DATA_ATUALIZACAO],
+          [id_info_importador]                     AS [NR_ID_INFO_IMPORTADOR],
+          [CHAVE_UNICA]                            AS [NM_CHAVE_UNICA],
+
+          CASE 
+            WHEN [nom_Elemento] LIKE '%GP%' THEN 'INTERNO'
+            ELSE 'EXTERNO'
+          END AS [NM_TIPO_ELEMENTO],
+
+          CASE 
+            WHEN [num_AfetacaoOC] >= 100 THEN 'GRANDE VULTO'
+            ELSE 'OCORRENCIA'
+          END AS [NM_TIPO_AFETACAO]
+
+    INTO dbo.TB_CLIENTE_GOLD_ELOS_PARAMETRO_688
+    FROM dbo.TB_CLIENTE_SILVER_ELOS_PARAMETRO_688;
+END;
