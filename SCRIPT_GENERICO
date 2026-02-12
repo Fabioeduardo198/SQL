@@ -1,8 +1,8 @@
 
 ```
-Alterrar nome de coluna
+Alterar nome de coluna
 EXEC sp_rename
-'DB_VTAL.dbo.TB_VTAL_SILVER_ANL_FO_REPARO_NO_PRAZO_ACESSO_BACKBONE.mm_novo_tempo', 
+'DB_CLIENTE.dbo.TB_VTAL_SILVER_ANL_FO_REPARO_NO_PRAZO_ACESSO_BACKBONE.mm_novo_tempo', 
 'mm_tempo_fibra', 
 'COLUMN';
 ```
